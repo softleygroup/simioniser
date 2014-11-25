@@ -2,6 +2,7 @@ from __future__ import print_function # for python3-compatibility
 
 import numpy as np
 import os
+import sys
 
 import ctypes
 from ctypes import c_double, c_ulong, c_uint
@@ -13,7 +14,6 @@ class simion(object):
 		self.verbose=verbose
 		directory, fname = os.path.split(filename)
 		files = sorted([x for x in os.listdir(directory) if x.startswith(fname) and x.endswith('patxt')])
-		
 		assert len(files) == len(voltages), 'Incorrect number of potentials specified!'
 		
 		self.pas = [0]*len(files)
@@ -80,41 +80,40 @@ class accelerator(object):
 			target = 'accelerator3D'
 		else:
 			target = 'accelerator2D'
-		if not os.path.exists(localdir + target + '.so') or os.stat(localdir + target + '.c').st_mtime > os.stat(localdir + target + '.so').st_mtime: # we need to recompile
-			from subprocess import call
-			
-			COMPILE = ['PROF'] # 'PROF', 'FAST', both or neither
-			# include branch prediction generation. compile final version with only -fprofile-use
+
+		if sys.platform.startswith('linux'):
+			compiler = 'gcc'
 			commonopts = ['-c', '-fPIC', '-Ofast', '-march=native', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
-			profcommand = ['gcc', '-fprofile-arcs', '-fprofile-generate', target + '.c']
+			extension = '.so'
+		elif sys.platform == 'win32':
+			commonopts = ['-c', '-Ofast', '-march=native', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
+			compiler = 'C:\\MinGW\\bin\\gcc'
+			extension = '.dll'
+		else:
+			raise RuntimeError('Platform not supported!')
+
+		libpath = localdir + target + extension
+
+		if not os.path.exists(libpath) or os.stat(localdir + target + '.c').st_mtime > os.stat(libpath).st_mtime: # we need to recompile
+			from subprocess import call
+			profcommand = [compiler, target + '.c']
 			profcommand[1:1] = commonopts
-			fastcommand = ['gcc', '-fprofile-use', target + '.c']
-			fastcommand[1:1] = commonopts
-			
+	
 			print()
 			print()
 			print('===================================')
 			print('compilation target: ', target)
-			if 'PROF' in COMPILE:
-				if call(profcommand, cwd = localdir) != 0:
-					print('COMPILATION FAILED!')
-					raise RuntimeError
-				call(['gcc', '-shared', '-fprofile-generate', target + '.o', '-o', target + '.so'], cwd = localdir)
-				print('COMPILATION: PROFILING RUN')
-			if 'FAST' in COMPILE:
-				call(fastcommand, cwd=localdir)
-				call(['gcc', '-shared', target + '.o', '-o', target + '.so'], cwd = localdir)
-				print('COMPILATION: FAST RUN')
-			if not ('PROF' in COMPILE or 'FAST' in COMPILE):
-				print('DID NOT RECOMPILE C SOURCE')
+			call(profcommand, cwd=localdir)
+			call([compiler, '-shared', target + '.o', '-o', target + extension], cwd=localdir)
+			print('COMPILATION: PROFILING RUN')
 			print('===================================')
 			print()
 			print()
 		elif self.verbose:
-			print('library up to date, not recompiling accelerator')
+			print('library up to date, not recompiling field accelerator')
 		
 		
-		self.acc = ctypes.cdll.LoadLibrary(localdir + target + '.so')
+		self.acc = ctypes.cdll.LoadLibrary(libpath)
 		
 		self.acc.set_npas.argtypes = [c_uint]
 		self.acc.set_npas.restype = None
