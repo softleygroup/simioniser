@@ -2,6 +2,7 @@ from __future__ import print_function # for python3-compatibility
 
 import numpy as np
 import os
+import sys
 
 import ctypes
 from ctypes import c_double, c_ulong, c_uint
@@ -79,15 +80,28 @@ class accelerator(object):
 			target = 'accelerator3D'
 		else:
 			target = 'accelerator2D'
-		if not os.path.exists(localdir + target + '.dll') or os.stat(localdir + target + '.c').st_mtime > os.stat(localdir + target + '.dll').st_mtime: # we need to recompile
+
+		if sys.platform.startswith('linux'):
+			compiler = 'gcc'
+			extraopts = '-fPIC'
+			extension = '.so'
+		elif sys.platform == 'win32':
+			compiler = 'C:\\MinGW\\bin\\gcc'
+			extraopts = ''
+			extension = '.dll'
+		else:
+			raise RuntimeError('Platform not supported!')
+
+
+		if not os.path.exists(localdir + target + extension) or os.stat(localdir + target + '.c').st_mtime > os.stat(localdir + target + extension).st_mtime: # we need to recompile
 			from subprocess import call
 			
 			COMPILE = ['PROF'] # 'PROF', 'FAST', both or neither
 			# include branch prediction generation. compile final version with only -fprofile-use
-			commonopts = ['-c', '-Ofast', '-march=native', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
-			profcommand = ['C:\\MinGW\\bin\\gcc', target + '.c']
+			commonopts = ['-c', extraopts, '-Ofast', '-march=native', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
+			profcommand = [compiler, target + '.c']
 			profcommand[1:1] = commonopts
-			fastcommand = ['C:\\MinGW\\bin\\gcc', target + '.c']
+			fastcommand = [compiler, target + '.c']
 			fastcommand[1:1] = commonopts
 			
 			print()
@@ -98,11 +112,11 @@ class accelerator(object):
 				if call(profcommand, cwd = localdir) != 0:
 					print('COMPILATION FAILED!')
 					raise RuntimeError
-				call(['C:\\MinGW\\bin\\gcc', '-shared', target + '.o', '-o', target + '.dll'], cwd = localdir)
+				call([compiler, '-shared', target + '.o', '-o', target + extension], cwd = localdir)
 				print('COMPILATION: PROFILING RUN')
 			if 'FAST' in COMPILE:
 				call(fastcommand, cwd=localdir)
-				call(['C:\\MinGW\\bin\\gcc', '-shared', target + '.o', '-o', target + '.dll'], cwd = localdir)
+				call([compiler, '-shared', target + '.o', '-o', target + extension], cwd = localdir)
 				print('COMPILATION: FAST RUN')
 			if not ('PROF' in COMPILE or 'FAST' in COMPILE):
 				print('DID NOT RECOMPILE C SOURCE')
@@ -113,7 +127,7 @@ class accelerator(object):
 			print('library up to date, not recompiling accelerator')
 		
 		
-		self.acc = ctypes.cdll.LoadLibrary(localdir + target + '.dll')
+		self.acc = ctypes.cdll.LoadLibrary(localdir + target + extension)
 		
 		self.acc.set_npas.argtypes = [c_uint]
 		self.acc.set_npas.restype = None
