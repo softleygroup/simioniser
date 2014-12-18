@@ -89,6 +89,10 @@ class accelerator(object):
 			commonopts = ['-c', '-Ofast', '-march=native', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
 			compiler = 'C:\\MinGW\\bin\\gcc'
 			extension = '.dll'
+		elif sys.platform == 'darwin':
+			compiler = 'gcc'
+			commonopts = ['-c', '-fPIC', '-Ofast', '-std=c99', '-fno-exceptions', '-fomit-frame-pointer']
+			extension = '.so'
 		else:
 			raise RuntimeError('Platform not supported!')
 
