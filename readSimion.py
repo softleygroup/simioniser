@@ -178,7 +178,17 @@ class patxt(object):
 				print('loading ', filename, 'from cache')
 			data = np.load(filename + '.npy')
 		else:
-			data = np.genfromtxt(filename, delimiter = ' ', skip_header = 18, skip_footer = 2, usecols = (3, 4))
+			import csv
+			ntot = nx*ny*nz
+			data = np.empty((ntot, 2))
+			with open(filename, 'rb') as ifile:
+				reader = csv.reader(ifile, delimiter=' ')
+				for i in range(18): # skip header
+					reader.next()
+				for i in range(ntot):
+					line = reader.next()
+					data[i, 0] = float(line[3])
+					data[i, 1] = float(line[4])
 			np.save(filename, data)
 		
 		assert data.shape[0] == nx*ny*nz
