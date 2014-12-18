@@ -173,7 +173,7 @@ class patxt(object):
 		nz = int(self.parameters['nz'])
 		
 		# now read the actual data
-		if os.path.isfile(filename + '.npy'): # TODO: check date, not just existence
+		if os.path.isfile(filename + '.npy') and os.stat(filename + '.npy').st_mtime > os.stat(filename).st_mtime:
 			if self.verbose:
 				print('loading ', filename, 'from cache')
 			data = np.load(filename + '.npy')
